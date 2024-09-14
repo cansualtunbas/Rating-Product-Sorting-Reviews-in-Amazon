@@ -1,1 +1,984 @@
-{"metadata":{"kernelspec":{"language":"python","display_name":"Python 3","name":"python3"},"language_info":{"name":"python","version":"3.10.14","mimetype":"text/x-python","codemirror_mode":{"name":"ipython","version":3},"pygments_lexer":"ipython3","nbconvert_exporter":"python","file_extension":".py"},"kaggle":{"accelerator":"none","dataSources":[{"sourceId":9392689,"sourceType":"datasetVersion","datasetId":5700141}],"dockerImageVersionId":30761,"isInternetEnabled":true,"language":"python","sourceType":"notebook","isGpuEnabled":false}},"nbformat_minor":4,"nbformat":4,"cells":[{"cell_type":"code","source":"#Amazon ürün verilerini içeren bu veri seti ürün kategorileri ile çeşitli metadatalarıiçermektedir. Elektronik kategorisindeki en  fazla yorum alan ürünün kullanıcı puanları ve yorumları vardır.\n #12 Değişken 4915 Gözlem 71.9 MB\n #reviewerID Kullanıcı ID’si\n #asin  Ürün ID’si\n #reviewerName Kullanıcı Adı\n #helpful Faydalı değerlendirme derecesi\n #reviewText Değerlendirme\n #overall Ürün rating’i\n #summary Değerlendirme özeti\n #unixReviewTime Değerlendirme zamanı\n #reviewTime Değerlendirme zamanı Raw\n #day_diff Değerlendirmeden itibaren geçen gün sayısı\n #helpful_yes Değerlendirmenin faydalı bulunma sayısı\n #total_vote Değerlendirmeye verilen oy sayısı\nimport pandas as pd\nimport math\nimport scipy.stats as st\nfrom sklearn.preprocessing import MinMaxScaler\n\npd.set_option('display.max_columns', None)\npd.set_option('display.max_rows', None)\npd.set_option('display.width', 500)\npd.set_option('display.expand_frame_repr', False)\npd.set_option('display.float_format', lambda x: '%.5f' % x)\n\ndf = pd.read_csv(\"/kaggle/input/amazon-review/amazon_review.csv\")\n","metadata":{"_uuid":"8f2839f25d086af736a60e9eeb907d3b93b6e0e5","_cell_guid":"b1076dfc-b9ad-4769-8c92-a6c4dae69d19","execution":{"iopub.status.busy":"2024-09-14T13:11:05.242973Z","iopub.execute_input":"2024-09-14T13:11:05.243482Z","iopub.status.idle":"2024-09-14T13:11:05.306838Z","shell.execute_reply.started":"2024-09-14T13:11:05.243415Z","shell.execute_reply":"2024-09-14T13:11:05.305528Z"},"trusted":true},"execution_count":108,"outputs":[]},{"cell_type":"code","source":"#veri inceleme\n\ndf.head(5)\n#df.shape","metadata":{"execution":{"iopub.status.busy":"2024-09-14T13:11:05.308895Z","iopub.execute_input":"2024-09-14T13:11:05.309344Z","iopub.status.idle":"2024-09-14T13:11:05.327193Z","shell.execute_reply.started":"2024-09-14T13:11:05.309298Z","shell.execute_reply":"2024-09-14T13:11:05.325801Z"},"trusted":true},"execution_count":109,"outputs":[{"execution_count":109,"output_type":"execute_result","data":{"text/plain":"       reviewerID        asin  reviewerName helpful                                         reviewText  overall                                 summary  unixReviewTime  reviewTime  day_diff  helpful_yes  total_vote\n0  A3SBTW3WS4IQSN  B007WTAJTO           NaN  [0, 0]                                         No issues.  4.00000                              Four Stars      1406073600  2014-07-23       138            0           0\n1  A18K1ODH1I2MVB  B007WTAJTO          0mie  [0, 0]  Purchased this for my device, it worked as adv...  5.00000                           MOAR SPACE!!!      1382659200  2013-10-25       409            0           0\n2  A2FII3I2MBMUIA  B007WTAJTO           1K3  [0, 0]  it works as expected. I should have sprung for...  4.00000               nothing to really say....      1356220800  2012-12-23       715            0           0\n3   A3H99DFEG68SR  B007WTAJTO           1m2  [0, 0]  This think has worked out great.Had a diff. br...  5.00000  Great buy at this price!!!  *** UPDATE      1384992000  2013-11-21       382            0           0\n4  A375ZM4U047O79  B007WTAJTO  2&amp;1/2Men  [0, 0]  Bought it with Retail Packaging, arrived legit...  5.00000                        best deal around      1373673600  2013-07-13       513            0           0","text/html":"<div>\n<style scoped>\n    .dataframe tbody tr th:only-of-type {\n        vertical-align: middle;\n    }\n\n    .dataframe tbody tr th {\n        vertical-align: top;\n    }\n\n    .dataframe thead th {\n        text-align: right;\n    }\n</style>\n<table border=\"1\" class=\"dataframe\">\n  <thead>\n    <tr style=\"text-align: right;\">\n      <th></th>\n      <th>reviewerID</th>\n      <th>asin</th>\n      <th>reviewerName</th>\n      <th>helpful</th>\n      <th>reviewText</th>\n      <th>overall</th>\n      <th>summary</th>\n      <th>unixReviewTime</th>\n      <th>reviewTime</th>\n      <th>day_diff</th>\n      <th>helpful_yes</th>\n      <th>total_vote</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th>0</th>\n      <td>A3SBTW3WS4IQSN</td>\n      <td>B007WTAJTO</td>\n      <td>NaN</td>\n      <td>[0, 0]</td>\n      <td>No issues.</td>\n      <td>4.00000</td>\n      <td>Four Stars</td>\n      <td>1406073600</td>\n      <td>2014-07-23</td>\n      <td>138</td>\n      <td>0</td>\n      <td>0</td>\n    </tr>\n    <tr>\n      <th>1</th>\n      <td>A18K1ODH1I2MVB</td>\n      <td>B007WTAJTO</td>\n      <td>0mie</td>\n      <td>[0, 0]</td>\n      <td>Purchased this for my device, it worked as adv...</td>\n      <td>5.00000</td>\n      <td>MOAR SPACE!!!</td>\n      <td>1382659200</td>\n      <td>2013-10-25</td>\n      <td>409</td>\n      <td>0</td>\n      <td>0</td>\n    </tr>\n    <tr>\n      <th>2</th>\n      <td>A2FII3I2MBMUIA</td>\n      <td>B007WTAJTO</td>\n      <td>1K3</td>\n      <td>[0, 0]</td>\n      <td>it works as expected. I should have sprung for...</td>\n      <td>4.00000</td>\n      <td>nothing to really say....</td>\n      <td>1356220800</td>\n      <td>2012-12-23</td>\n      <td>715</td>\n      <td>0</td>\n      <td>0</td>\n    </tr>\n    <tr>\n      <th>3</th>\n      <td>A3H99DFEG68SR</td>\n      <td>B007WTAJTO</td>\n      <td>1m2</td>\n      <td>[0, 0]</td>\n      <td>This think has worked out great.Had a diff. br...</td>\n      <td>5.00000</td>\n      <td>Great buy at this price!!!  *** UPDATE</td>\n      <td>1384992000</td>\n      <td>2013-11-21</td>\n      <td>382</td>\n      <td>0</td>\n      <td>0</td>\n    </tr>\n    <tr>\n      <th>4</th>\n      <td>A375ZM4U047O79</td>\n      <td>B007WTAJTO</td>\n      <td>2&amp;amp;1/2Men</td>\n      <td>[0, 0]</td>\n      <td>Bought it with Retail Packaging, arrived legit...</td>\n      <td>5.00000</td>\n      <td>best deal around</td>\n      <td>1373673600</td>\n      <td>2013-07-13</td>\n      <td>513</td>\n      <td>0</td>\n      <td>0</td>\n    </tr>\n  </tbody>\n</table>\n</div>"},"metadata":{}}]},{"cell_type":"code","source":"#Görev 1:  Average Rating’i güncel yorumlara göre hesaplayınız ve var olan average rating ile kıyaslayınız.\n#Adım 1:   Ürünün ortalama puanını hesaplayınız.\ndf[\"overall\"].mean()","metadata":{"execution":{"iopub.status.busy":"2024-09-14T13:11:05.329096Z","iopub.execute_input":"2024-09-14T13:11:05.330175Z","iopub.status.idle":"2024-09-14T13:11:05.339787Z","shell.execute_reply.started":"2024-09-14T13:11:05.330118Z","shell.execute_reply":"2024-09-14T13:11:05.338533Z"},"trusted":true},"execution_count":110,"outputs":[{"execution_count":110,"output_type":"execute_result","data":{"text/plain":"4.587589013224822"},"metadata":{}}]},{"cell_type":"code","source":"#Adım 2:  Tarihe göre ağırlıklı puan ortalamasını hesaplayınız\n#df.head(2)\ndf.loc[df[\"day_diff\"], \"overall\"].mean()","metadata":{"execution":{"iopub.status.busy":"2024-09-14T13:11:05.343298Z","iopub.execute_input":"2024-09-14T13:11:05.343828Z","iopub.status.idle":"2024-09-14T13:11:05.356816Z","shell.execute_reply.started":"2024-09-14T13:11:05.343780Z","shell.execute_reply":"2024-09-14T13:11:05.355239Z"},"trusted":true},"execution_count":111,"outputs":[{"execution_count":111,"output_type":"execute_result","data":{"text/plain":"4.579654120040692"},"metadata":{}}]},{"cell_type":"code","source":"# Adım 3:  Ağırlıklandırılmış puanlamada her bir zaman diliminin ortalamasını karşılaştırıp yorumlayınız.\n#değerlendirmeden itibaren 30 gün geçmiş ortalaması\ndf.loc[df[\"day_diff\"]<=30, \"overall\"].mean()\n#son 30 gün içerisinde bu ürüne yapılmış değerlendirmeler olumlu (Tarihe göre ağırlıklı puan ortalamasına göre)","metadata":{"execution":{"iopub.status.busy":"2024-09-14T13:11:05.358734Z","iopub.execute_input":"2024-09-14T13:11:05.360426Z","iopub.status.idle":"2024-09-14T13:11:05.371264Z","shell.execute_reply.started":"2024-09-14T13:11:05.360353Z","shell.execute_reply":"2024-09-14T13:11:05.369969Z"},"trusted":true},"execution_count":112,"outputs":[{"execution_count":112,"output_type":"execute_result","data":{"text/plain":"4.742424242424242"},"metadata":{}}]},{"cell_type":"code","source":"#değerlendirmeden itibaren 30-90 gün ortalaması\ndf.loc[(df[\"day_diff\"]>30)&(df[\"day_diff\"]<=90), \"overall\"].mean()\n","metadata":{"execution":{"iopub.status.busy":"2024-09-14T13:11:05.373126Z","iopub.execute_input":"2024-09-14T13:11:05.373559Z","iopub.status.idle":"2024-09-14T13:11:05.389597Z","shell.execute_reply.started":"2024-09-14T13:11:05.373499Z","shell.execute_reply":"2024-09-14T13:11:05.388205Z"},"trusted":true},"execution_count":113,"outputs":[{"execution_count":113,"output_type":"execute_result","data":{"text/plain":"4.803149606299213"},"metadata":{}}]},{"cell_type":"code","source":"#değerlendirmeden itibaren 90-180 gün ortalaması\ndf.loc[(df[\"day_diff\"]>90)&(df[\"day_diff\"]<=180), \"overall\"].mean()\n","metadata":{"execution":{"iopub.status.busy":"2024-09-14T13:11:05.391853Z","iopub.execute_input":"2024-09-14T13:11:05.392389Z","iopub.status.idle":"2024-09-14T13:11:05.405626Z","shell.execute_reply.started":"2024-09-14T13:11:05.392331Z","shell.execute_reply":"2024-09-14T13:11:05.404282Z"},"trusted":true},"execution_count":114,"outputs":[{"execution_count":114,"output_type":"execute_result","data":{"text/plain":"4.649484536082475"},"metadata":{}}]},{"cell_type":"code","source":"#değerlendirmeden itibaren 180+ gün ortalaması\ndf.loc[df[\"day_diff\"]>180, \"overall\"].mean()\n#bu ürüne yapılan değerlendirmeler eskiden daha az puan almış demek.","metadata":{"execution":{"iopub.status.busy":"2024-09-14T13:11:05.407304Z","iopub.execute_input":"2024-09-14T13:11:05.407756Z","iopub.status.idle":"2024-09-14T13:11:05.419932Z","shell.execute_reply.started":"2024-09-14T13:11:05.407710Z","shell.execute_reply":"2024-09-14T13:11:05.418617Z"},"trusted":true},"execution_count":115,"outputs":[{"execution_count":115,"output_type":"execute_result","data":{"text/plain":"4.573373327180434"},"metadata":{}}]},{"cell_type":"code","source":"#Görev 2:  Ürün için ürün detay sayfasında görüntülenecek 20 review’i belirleyiniz.\n\n#Adım 1:  helpful_no değişkenini üretiniz.\n #• total_vote bir yoruma verilen toplam up-downsayısıdır.\n #• up, helpful demektir.\n #• Veri setinde helpful_no değişkeni yoktur, var olan değişkenler üzerinden üretilmesi gerekmektedir.\n #• Toplam oy sayısından (total_vote) yararlı oy sayısı (helpful_yes) çıkarılarak yararlı bulunmayan oy sayılarını (helpful_no) bulunuz.\n\ndf[\"helpful_no\"]=df[\"total_vote\"]-df[\"helpful_yes\"]\ndf.head()","metadata":{"execution":{"iopub.status.busy":"2024-09-14T13:11:05.421552Z","iopub.execute_input":"2024-09-14T13:11:05.422157Z","iopub.status.idle":"2024-09-14T13:11:05.445788Z","shell.execute_reply.started":"2024-09-14T13:11:05.422099Z","shell.execute_reply":"2024-09-14T13:11:05.444452Z"},"trusted":true},"execution_count":116,"outputs":[{"execution_count":116,"output_type":"execute_result","data":{"text/plain":"       reviewerID        asin  reviewerName helpful                                         reviewText  overall                                 summary  unixReviewTime  reviewTime  day_diff  helpful_yes  total_vote  helpful_no\n0  A3SBTW3WS4IQSN  B007WTAJTO           NaN  [0, 0]                                         No issues.  4.00000                              Four Stars      1406073600  2014-07-23       138            0           0           0\n1  A18K1ODH1I2MVB  B007WTAJTO          0mie  [0, 0]  Purchased this for my device, it worked as adv...  5.00000                           MOAR SPACE!!!      1382659200  2013-10-25       409            0           0           0\n2  A2FII3I2MBMUIA  B007WTAJTO           1K3  [0, 0]  it works as expected. I should have sprung for...  4.00000               nothing to really say....      1356220800  2012-12-23       715            0           0           0\n3   A3H99DFEG68SR  B007WTAJTO           1m2  [0, 0]  This think has worked out great.Had a diff. br...  5.00000  Great buy at this price!!!  *** UPDATE      1384992000  2013-11-21       382            0           0           0\n4  A375ZM4U047O79  B007WTAJTO  2&amp;1/2Men  [0, 0]  Bought it with Retail Packaging, arrived legit...  5.00000                        best deal around      1373673600  2013-07-13       513            0           0           0","text/html":"<div>\n<style scoped>\n    .dataframe tbody tr th:only-of-type {\n        vertical-align: middle;\n    }\n\n    .dataframe tbody tr th {\n        vertical-align: top;\n    }\n\n    .dataframe thead th {\n        text-align: right;\n    }\n</style>\n<table border=\"1\" class=\"dataframe\">\n  <thead>\n    <tr style=\"text-align: right;\">\n      <th></th>\n      <th>reviewerID</th>\n      <th>asin</th>\n      <th>reviewerName</th>\n      <th>helpful</th>\n      <th>reviewText</th>\n      <th>overall</th>\n      <th>summary</th>\n      <th>unixReviewTime</th>\n      <th>reviewTime</th>\n      <th>day_diff</th>\n      <th>helpful_yes</th>\n      <th>total_vote</th>\n      <th>helpful_no</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th>0</th>\n      <td>A3SBTW3WS4IQSN</td>\n      <td>B007WTAJTO</td>\n      <td>NaN</td>\n      <td>[0, 0]</td>\n      <td>No issues.</td>\n      <td>4.00000</td>\n      <td>Four Stars</td>\n      <td>1406073600</td>\n      <td>2014-07-23</td>\n      <td>138</td>\n      <td>0</td>\n      <td>0</td>\n      <td>0</td>\n    </tr>\n    <tr>\n      <th>1</th>\n      <td>A18K1ODH1I2MVB</td>\n      <td>B007WTAJTO</td>\n      <td>0mie</td>\n      <td>[0, 0]</td>\n      <td>Purchased this for my device, it worked as adv...</td>\n      <td>5.00000</td>\n      <td>MOAR SPACE!!!</td>\n      <td>1382659200</td>\n      <td>2013-10-25</td>\n      <td>409</td>\n      <td>0</td>\n      <td>0</td>\n      <td>0</td>\n    </tr>\n    <tr>\n      <th>2</th>\n      <td>A2FII3I2MBMUIA</td>\n      <td>B007WTAJTO</td>\n      <td>1K3</td>\n      <td>[0, 0]</td>\n      <td>it works as expected. I should have sprung for...</td>\n      <td>4.00000</td>\n      <td>nothing to really say....</td>\n      <td>1356220800</td>\n      <td>2012-12-23</td>\n      <td>715</td>\n      <td>0</td>\n      <td>0</td>\n      <td>0</td>\n    </tr>\n    <tr>\n      <th>3</th>\n      <td>A3H99DFEG68SR</td>\n      <td>B007WTAJTO</td>\n      <td>1m2</td>\n      <td>[0, 0]</td>\n      <td>This think has worked out great.Had a diff. br...</td>\n      <td>5.00000</td>\n      <td>Great buy at this price!!!  *** UPDATE</td>\n      <td>1384992000</td>\n      <td>2013-11-21</td>\n      <td>382</td>\n      <td>0</td>\n      <td>0</td>\n      <td>0</td>\n    </tr>\n    <tr>\n      <th>4</th>\n      <td>A375ZM4U047O79</td>\n      <td>B007WTAJTO</td>\n      <td>2&amp;amp;1/2Men</td>\n      <td>[0, 0]</td>\n      <td>Bought it with Retail Packaging, arrived legit...</td>\n      <td>5.00000</td>\n      <td>best deal around</td>\n      <td>1373673600</td>\n      <td>2013-07-13</td>\n      <td>513</td>\n      <td>0</td>\n      <td>0</td>\n      <td>0</td>\n    </tr>\n  </tbody>\n</table>\n</div>"},"metadata":{}}]},{"cell_type":"code","source":"#Adım 2:  score_pos_neg_diff, score_average_rating ve wilson_lower_bound skorlarını hesaplayıp veriye ekleyiniz.\n #• score_pos_neg_diff, score_average_rating ve wilson_lower_bound skorlarını hesaplayabilmek için score_pos_neg_diff,  score_average_rating ve wilson_lower_bound fonksiyonlarını tanımlayınız.\n #• score_pos_neg_diff'a göre skorlar oluşturunuz. Ardından; df içerisinde score_pos_neg_diff ismiyle kaydediniz.\n #• score_average_rating'a göre skorlar oluşturunuz. Ardından; df içerisinde score_average_rating ismiyle kaydediniz.\n #• wilson_lower_bound'a göre skorlar oluşturunuz. Ardından; df içerisinde wilson_lower_bound ismiyle kaydediniz.\n\ndef score_pos_neg_diff(up,down):\n    return up-down\n\ndef score_average_rating(up,down):\n    if up + down == 0:\n        return 0\n    else:\n        return up / (up + down)\n    \ndef wilson_lower_bound(up, down, confidence=0.95):\n    \"\"\"\n    Wilson Lower Bound Score hesapla\n\n    - Bernoulli parametresi p için hesaplanacak güven aralığının alt sınırı WLB skoru olarak kabul edilir.\n    - Hesaplanacak skor ürün sıralaması için kullanılır.\n    - Not:\n    Eğer skorlar 1-5 arasıdaysa 1-3 negatif, 4-5 pozitif olarak işaretlenir ve bernoulli'ye uygun hale getirilebilir.\n    Bu beraberinde bazı problemleri de getirir. Bu sebeple bayesian average rating yapmak gerekir.\n\n    Parameters\n    ----------\n    up: int\n        up count\n    down: int\n        down count\n    confidence: float\n        confidence\n\n    Returns\n    -------\n    wilson score: float\n\n    \"\"\"\n    n = up + down\n    if n == 0:\n        return 0\n    z = st.norm.ppf(1 - (1 - confidence) / 2)\n    phat = 1.0 * up / n\n    return (phat + z * z / (2 * n) - z * math.sqrt((phat * (1 - phat) + z * z / (4 * n)) / n)) / (1 + z * z / n)\n    ","metadata":{"execution":{"iopub.status.busy":"2024-09-14T13:11:05.450289Z","iopub.execute_input":"2024-09-14T13:11:05.450721Z","iopub.status.idle":"2024-09-14T13:11:05.462661Z","shell.execute_reply.started":"2024-09-14T13:11:05.450679Z","shell.execute_reply":"2024-09-14T13:11:05.461215Z"},"trusted":true},"execution_count":117,"outputs":[]},{"cell_type":"code","source":"df[\"score_pos_neg_diff\"]=df.apply(lambda x: score_pos_neg_diff(x[\"helpful_yes\"], x[\"helpful_no\"]), axis=1)","metadata":{"execution":{"iopub.status.busy":"2024-09-14T13:11:05.464619Z","iopub.execute_input":"2024-09-14T13:11:05.465303Z","iopub.status.idle":"2024-09-14T13:11:05.572436Z","shell.execute_reply.started":"2024-09-14T13:11:05.465244Z","shell.execute_reply":"2024-09-14T13:11:05.571084Z"},"trusted":true},"execution_count":118,"outputs":[]},{"cell_type":"code","source":"df[\"score_average_rating\"] = df.apply(lambda x: score_average_rating(x[\"helpful_yes\"], x[\"helpful_no\"]), axis=1)","metadata":{"execution":{"iopub.status.busy":"2024-09-14T13:11:05.574223Z","iopub.execute_input":"2024-09-14T13:11:05.574597Z","iopub.status.idle":"2024-09-14T13:11:05.678386Z","shell.execute_reply.started":"2024-09-14T13:11:05.574559Z","shell.execute_reply":"2024-09-14T13:11:05.677025Z"},"trusted":true},"execution_count":119,"outputs":[]},{"cell_type":"code","source":"df[\"wilson_lower_bound\"] = df.apply(lambda x: wilson_lower_bound(x[\"helpful_yes\"], x[\"helpful_no\"]), axis=1)","metadata":{"execution":{"iopub.status.busy":"2024-09-14T13:11:05.680050Z","iopub.execute_input":"2024-09-14T13:11:05.680470Z","iopub.status.idle":"2024-09-14T13:11:05.912055Z","shell.execute_reply.started":"2024-09-14T13:11:05.680426Z","shell.execute_reply":"2024-09-14T13:11:05.910738Z"},"trusted":true},"execution_count":120,"outputs":[]},{"cell_type":"code","source":"# Adım 3:  20 Yorumu belirleyiniz ve sonuçları Yorumlayınız.\n# • wilson_lower_bound'a göre ilk 20 yorumu belirleyip sıralayanız.\n# • Sonuçları yorumlayınız\n\ndf.sort_values(\"wilson_lower_bound\", ascending=False).head(5)","metadata":{"execution":{"iopub.status.busy":"2024-09-14T13:11:05.913411Z","iopub.execute_input":"2024-09-14T13:11:05.915208Z","iopub.status.idle":"2024-09-14T13:11:05.940792Z","shell.execute_reply.started":"2024-09-14T13:11:05.915144Z","shell.execute_reply":"2024-09-14T13:11:05.939354Z"},"trusted":true},"execution_count":121,"outputs":[{"execution_count":121,"output_type":"execute_result","data":{"text/plain":"          reviewerID        asin             reviewerName       helpful                                         reviewText  overall                                            summary  unixReviewTime  reviewTime  day_diff  helpful_yes  total_vote  helpful_no  score_pos_neg_diff  score_average_rating  wilson_lower_bound\n2031  A12B7ZMXFI6IXY  B007WTAJTO     Hyoun Kim \"Faluzure\"  [1952, 2020]  [[ UPDATE - 6/19/2014 ]]So my lovely wife boug...  5.00000  UPDATED - Great w/ Galaxy S4 & Galaxy Tab 4 10...      1367366400  2013-01-05       702         1952        2020          68                1884               0.96634             0.95754\n3449   AOEAD7DPLZE53  B007WTAJTO        NLee the Engineer  [1428, 1505]  I have tested dozens of SDHC and micro-SDHC ca...  5.00000  Top of the class among all (budget-priced) mic...      1348617600  2012-09-26       803         1428        1505          77                1351               0.94884             0.93652\n4212   AVBMZZAFEKO58  B007WTAJTO              SkincareCEO  [1568, 1694]  NOTE:  please read the last update (scroll to ...  1.00000  1 Star reviews - Micro SDXC card unmounts itse...      1375660800  2013-05-08       579         1568        1694         126                1442               0.92562             0.91214\n317   A1ZQAQFYSXL5MQ  B007WTAJTO  Amazon Customer \"Kelly\"    [422, 495]  If your card gets hot enough to be painful, it...  1.00000                                Warning, read this!      1346544000  2012-02-09      1033          422         495          73                 349               0.85253             0.81858\n4672  A2DKQQIZ793AV5  B007WTAJTO                  Twister      [45, 49]  Sandisk announcement of the first 128GB micro ...  5.00000  Super high capacity!!!  Excellent price (on Am...      1394150400  2014-07-03       158           45          49           4                  41               0.91837             0.80811","text/html":"<div>\n<style scoped>\n    .dataframe tbody tr th:only-of-type {\n        vertical-align: middle;\n    }\n\n    .dataframe tbody tr th {\n        vertical-align: top;\n    }\n\n    .dataframe thead th {\n        text-align: right;\n    }\n</style>\n<table border=\"1\" class=\"dataframe\">\n  <thead>\n    <tr style=\"text-align: right;\">\n      <th></th>\n      <th>reviewerID</th>\n      <th>asin</th>\n      <th>reviewerName</th>\n      <th>helpful</th>\n      <th>reviewText</th>\n      <th>overall</th>\n      <th>summary</th>\n      <th>unixReviewTime</th>\n      <th>reviewTime</th>\n      <th>day_diff</th>\n      <th>helpful_yes</th>\n      <th>total_vote</th>\n      <th>helpful_no</th>\n      <th>score_pos_neg_diff</th>\n      <th>score_average_rating</th>\n      <th>wilson_lower_bound</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th>2031</th>\n      <td>A12B7ZMXFI6IXY</td>\n      <td>B007WTAJTO</td>\n      <td>Hyoun Kim \"Faluzure\"</td>\n      <td>[1952, 2020]</td>\n      <td>[[ UPDATE - 6/19/2014 ]]So my lovely wife boug...</td>\n      <td>5.00000</td>\n      <td>UPDATED - Great w/ Galaxy S4 &amp; Galaxy Tab 4 10...</td>\n      <td>1367366400</td>\n      <td>2013-01-05</td>\n      <td>702</td>\n      <td>1952</td>\n      <td>2020</td>\n      <td>68</td>\n      <td>1884</td>\n      <td>0.96634</td>\n      <td>0.95754</td>\n    </tr>\n    <tr>\n      <th>3449</th>\n      <td>AOEAD7DPLZE53</td>\n      <td>B007WTAJTO</td>\n      <td>NLee the Engineer</td>\n      <td>[1428, 1505]</td>\n      <td>I have tested dozens of SDHC and micro-SDHC ca...</td>\n      <td>5.00000</td>\n      <td>Top of the class among all (budget-priced) mic...</td>\n      <td>1348617600</td>\n      <td>2012-09-26</td>\n      <td>803</td>\n      <td>1428</td>\n      <td>1505</td>\n      <td>77</td>\n      <td>1351</td>\n      <td>0.94884</td>\n      <td>0.93652</td>\n    </tr>\n    <tr>\n      <th>4212</th>\n      <td>AVBMZZAFEKO58</td>\n      <td>B007WTAJTO</td>\n      <td>SkincareCEO</td>\n      <td>[1568, 1694]</td>\n      <td>NOTE:  please read the last update (scroll to ...</td>\n      <td>1.00000</td>\n      <td>1 Star reviews - Micro SDXC card unmounts itse...</td>\n      <td>1375660800</td>\n      <td>2013-05-08</td>\n      <td>579</td>\n      <td>1568</td>\n      <td>1694</td>\n      <td>126</td>\n      <td>1442</td>\n      <td>0.92562</td>\n      <td>0.91214</td>\n    </tr>\n    <tr>\n      <th>317</th>\n      <td>A1ZQAQFYSXL5MQ</td>\n      <td>B007WTAJTO</td>\n      <td>Amazon Customer \"Kelly\"</td>\n      <td>[422, 495]</td>\n      <td>If your card gets hot enough to be painful, it...</td>\n      <td>1.00000</td>\n      <td>Warning, read this!</td>\n      <td>1346544000</td>\n      <td>2012-02-09</td>\n      <td>1033</td>\n      <td>422</td>\n      <td>495</td>\n      <td>73</td>\n      <td>349</td>\n      <td>0.85253</td>\n      <td>0.81858</td>\n    </tr>\n    <tr>\n      <th>4672</th>\n      <td>A2DKQQIZ793AV5</td>\n      <td>B007WTAJTO</td>\n      <td>Twister</td>\n      <td>[45, 49]</td>\n      <td>Sandisk announcement of the first 128GB micro ...</td>\n      <td>5.00000</td>\n      <td>Super high capacity!!!  Excellent price (on Am...</td>\n      <td>1394150400</td>\n      <td>2014-07-03</td>\n      <td>158</td>\n      <td>45</td>\n      <td>49</td>\n      <td>4</td>\n      <td>41</td>\n      <td>0.91837</td>\n      <td>0.80811</td>\n    </tr>\n  </tbody>\n</table>\n</div>"},"metadata":{}}]}]}
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "36837d9c",
+   "metadata": {
+    "_cell_guid": "b1076dfc-b9ad-4769-8c92-a6c4dae69d19",
+    "_uuid": "8f2839f25d086af736a60e9eeb907d3b93b6e0e5",
+    "execution": {
+     "iopub.execute_input": "2024-09-14T13:12:58.935721Z",
+     "iopub.status.busy": "2024-09-14T13:12:58.934683Z",
+     "iopub.status.idle": "2024-09-14T13:13:00.669469Z",
+     "shell.execute_reply": "2024-09-14T13:13:00.668354Z"
+    },
+    "papermill": {
+     "duration": 1.743904,
+     "end_time": "2024-09-14T13:13:00.672091",
+     "exception": false,
+     "start_time": "2024-09-14T13:12:58.928187",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "#Amazon ürün verilerini içeren bu veri seti ürün kategorileri ile çeşitli metadatalarıiçermektedir. Elektronik kategorisindeki en  fazla yorum alan ürünün kullanıcı puanları ve yorumları vardır.\n",
+    " #12 Değişken 4915 Gözlem 71.9 MB\n",
+    " #reviewerID Kullanıcı ID’si\n",
+    " #asin  Ürün ID’si\n",
+    " #reviewerName Kullanıcı Adı\n",
+    " #helpful Faydalı değerlendirme derecesi\n",
+    " #reviewText Değerlendirme\n",
+    " #overall Ürün rating’i\n",
+    " #summary Değerlendirme özeti\n",
+    " #unixReviewTime Değerlendirme zamanı\n",
+    " #reviewTime Değerlendirme zamanı Raw\n",
+    " #day_diff Değerlendirmeden itibaren geçen gün sayısı\n",
+    " #helpful_yes Değerlendirmenin faydalı bulunma sayısı\n",
+    " #total_vote Değerlendirmeye verilen oy sayısı\n",
+    "import pandas as pd\n",
+    "import math\n",
+    "import scipy.stats as st\n",
+    "from sklearn.preprocessing import MinMaxScaler\n",
+    "\n",
+    "pd.set_option('display.max_columns', None)\n",
+    "pd.set_option('display.max_rows', None)\n",
+    "pd.set_option('display.width', 500)\n",
+    "pd.set_option('display.expand_frame_repr', False)\n",
+    "pd.set_option('display.float_format', lambda x: '%.5f' % x)\n",
+    "\n",
+    "df = pd.read_csv(\"/kaggle/input/amazon-review/amazon_review.csv\")\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "id": "5d0b95a2",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-09-14T13:13:00.682350Z",
+     "iopub.status.busy": "2024-09-14T13:13:00.681904Z",
+     "iopub.status.idle": "2024-09-14T13:13:00.706663Z",
+     "shell.execute_reply": "2024-09-14T13:13:00.705447Z"
+    },
+    "papermill": {
+     "duration": 0.032466,
+     "end_time": "2024-09-14T13:13:00.709010",
+     "exception": false,
+     "start_time": "2024-09-14T13:13:00.676544",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>reviewerID</th>\n",
+       "      <th>asin</th>\n",
+       "      <th>reviewerName</th>\n",
+       "      <th>helpful</th>\n",
+       "      <th>reviewText</th>\n",
+       "      <th>overall</th>\n",
+       "      <th>summary</th>\n",
+       "      <th>unixReviewTime</th>\n",
+       "      <th>reviewTime</th>\n",
+       "      <th>day_diff</th>\n",
+       "      <th>helpful_yes</th>\n",
+       "      <th>total_vote</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>A3SBTW3WS4IQSN</td>\n",
+       "      <td>B007WTAJTO</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>[0, 0]</td>\n",
+       "      <td>No issues.</td>\n",
+       "      <td>4.00000</td>\n",
+       "      <td>Four Stars</td>\n",
+       "      <td>1406073600</td>\n",
+       "      <td>2014-07-23</td>\n",
+       "      <td>138</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>A18K1ODH1I2MVB</td>\n",
+       "      <td>B007WTAJTO</td>\n",
+       "      <td>0mie</td>\n",
+       "      <td>[0, 0]</td>\n",
+       "      <td>Purchased this for my device, it worked as adv...</td>\n",
+       "      <td>5.00000</td>\n",
+       "      <td>MOAR SPACE!!!</td>\n",
+       "      <td>1382659200</td>\n",
+       "      <td>2013-10-25</td>\n",
+       "      <td>409</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>A2FII3I2MBMUIA</td>\n",
+       "      <td>B007WTAJTO</td>\n",
+       "      <td>1K3</td>\n",
+       "      <td>[0, 0]</td>\n",
+       "      <td>it works as expected. I should have sprung for...</td>\n",
+       "      <td>4.00000</td>\n",
+       "      <td>nothing to really say....</td>\n",
+       "      <td>1356220800</td>\n",
+       "      <td>2012-12-23</td>\n",
+       "      <td>715</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>A3H99DFEG68SR</td>\n",
+       "      <td>B007WTAJTO</td>\n",
+       "      <td>1m2</td>\n",
+       "      <td>[0, 0]</td>\n",
+       "      <td>This think has worked out great.Had a diff. br...</td>\n",
+       "      <td>5.00000</td>\n",
+       "      <td>Great buy at this price!!!  *** UPDATE</td>\n",
+       "      <td>1384992000</td>\n",
+       "      <td>2013-11-21</td>\n",
+       "      <td>382</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>A375ZM4U047O79</td>\n",
+       "      <td>B007WTAJTO</td>\n",
+       "      <td>2&amp;amp;1/2Men</td>\n",
+       "      <td>[0, 0]</td>\n",
+       "      <td>Bought it with Retail Packaging, arrived legit...</td>\n",
+       "      <td>5.00000</td>\n",
+       "      <td>best deal around</td>\n",
+       "      <td>1373673600</td>\n",
+       "      <td>2013-07-13</td>\n",
+       "      <td>513</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "       reviewerID        asin  reviewerName helpful                                         reviewText  overall                                 summary  unixReviewTime  reviewTime  day_diff  helpful_yes  total_vote\n",
+       "0  A3SBTW3WS4IQSN  B007WTAJTO           NaN  [0, 0]                                         No issues.  4.00000                              Four Stars      1406073600  2014-07-23       138            0           0\n",
+       "1  A18K1ODH1I2MVB  B007WTAJTO          0mie  [0, 0]  Purchased this for my device, it worked as adv...  5.00000                           MOAR SPACE!!!      1382659200  2013-10-25       409            0           0\n",
+       "2  A2FII3I2MBMUIA  B007WTAJTO           1K3  [0, 0]  it works as expected. I should have sprung for...  4.00000               nothing to really say....      1356220800  2012-12-23       715            0           0\n",
+       "3   A3H99DFEG68SR  B007WTAJTO           1m2  [0, 0]  This think has worked out great.Had a diff. br...  5.00000  Great buy at this price!!!  *** UPDATE      1384992000  2013-11-21       382            0           0\n",
+       "4  A375ZM4U047O79  B007WTAJTO  2&amp;1/2Men  [0, 0]  Bought it with Retail Packaging, arrived legit...  5.00000                        best deal around      1373673600  2013-07-13       513            0           0"
+      ]
+     },
+     "execution_count": 2,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#veri inceleme\n",
+    "\n",
+    "df.head(5)\n",
+    "#df.shape"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "id": "56621ca6",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-09-14T13:13:00.719485Z",
+     "iopub.status.busy": "2024-09-14T13:13:00.719064Z",
+     "iopub.status.idle": "2024-09-14T13:13:00.728015Z",
+     "shell.execute_reply": "2024-09-14T13:13:00.726998Z"
+    },
+    "papermill": {
+     "duration": 0.016954,
+     "end_time": "2024-09-14T13:13:00.730396",
+     "exception": false,
+     "start_time": "2024-09-14T13:13:00.713442",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "4.587589013224822"
+      ]
+     },
+     "execution_count": 3,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Görev 1:  Average Rating’i güncel yorumlara göre hesaplayınız ve var olan average rating ile kıyaslayınız.\n",
+    "#Adım 1:   Ürünün ortalama puanını hesaplayınız.\n",
+    "df[\"overall\"].mean()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "id": "8e08acf6",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-09-14T13:13:00.741592Z",
+     "iopub.status.busy": "2024-09-14T13:13:00.740663Z",
+     "iopub.status.idle": "2024-09-14T13:13:00.753710Z",
+     "shell.execute_reply": "2024-09-14T13:13:00.752625Z"
+    },
+    "papermill": {
+     "duration": 0.021123,
+     "end_time": "2024-09-14T13:13:00.756033",
+     "exception": false,
+     "start_time": "2024-09-14T13:13:00.734910",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "4.579654120040692"
+      ]
+     },
+     "execution_count": 4,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Adım 2:  Tarihe göre ağırlıklı puan ortalamasını hesaplayınız\n",
+    "#df.head(2)\n",
+    "df.loc[df[\"day_diff\"], \"overall\"].mean()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "id": "1043a998",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-09-14T13:13:00.767710Z",
+     "iopub.status.busy": "2024-09-14T13:13:00.766754Z",
+     "iopub.status.idle": "2024-09-14T13:13:00.774963Z",
+     "shell.execute_reply": "2024-09-14T13:13:00.773997Z"
+    },
+    "papermill": {
+     "duration": 0.016305,
+     "end_time": "2024-09-14T13:13:00.777109",
+     "exception": false,
+     "start_time": "2024-09-14T13:13:00.760804",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "4.742424242424242"
+      ]
+     },
+     "execution_count": 5,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# Adım 3:  Ağırlıklandırılmış puanlamada her bir zaman diliminin ortalamasını karşılaştırıp yorumlayınız.\n",
+    "#değerlendirmeden itibaren 30 gün geçmiş ortalaması\n",
+    "df.loc[df[\"day_diff\"]<=30, \"overall\"].mean()\n",
+    "#son 30 gün içerisinde bu ürüne yapılmış değerlendirmeler olumlu (Tarihe göre ağırlıklı puan ortalamasına göre)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "id": "82c39cc5",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-09-14T13:13:00.789458Z",
+     "iopub.status.busy": "2024-09-14T13:13:00.788457Z",
+     "iopub.status.idle": "2024-09-14T13:13:00.797044Z",
+     "shell.execute_reply": "2024-09-14T13:13:00.795950Z"
+    },
+    "papermill": {
+     "duration": 0.016895,
+     "end_time": "2024-09-14T13:13:00.799116",
+     "exception": false,
+     "start_time": "2024-09-14T13:13:00.782221",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "4.803149606299213"
+      ]
+     },
+     "execution_count": 6,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#değerlendirmeden itibaren 30-90 gün ortalaması\n",
+    "df.loc[(df[\"day_diff\"]>30)&(df[\"day_diff\"]<=90), \"overall\"].mean()\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "id": "ba997ce0",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-09-14T13:13:00.810944Z",
+     "iopub.status.busy": "2024-09-14T13:13:00.810093Z",
+     "iopub.status.idle": "2024-09-14T13:13:00.818855Z",
+     "shell.execute_reply": "2024-09-14T13:13:00.817801Z"
+    },
+    "papermill": {
+     "duration": 0.017118,
+     "end_time": "2024-09-14T13:13:00.821000",
+     "exception": false,
+     "start_time": "2024-09-14T13:13:00.803882",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "4.649484536082475"
+      ]
+     },
+     "execution_count": 7,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#değerlendirmeden itibaren 90-180 gün ortalaması\n",
+    "df.loc[(df[\"day_diff\"]>90)&(df[\"day_diff\"]<=180), \"overall\"].mean()\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "id": "e2a1de26",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-09-14T13:13:00.832434Z",
+     "iopub.status.busy": "2024-09-14T13:13:00.832043Z",
+     "iopub.status.idle": "2024-09-14T13:13:00.840195Z",
+     "shell.execute_reply": "2024-09-14T13:13:00.839151Z"
+    },
+    "papermill": {
+     "duration": 0.01649,
+     "end_time": "2024-09-14T13:13:00.842404",
+     "exception": false,
+     "start_time": "2024-09-14T13:13:00.825914",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "4.573373327180434"
+      ]
+     },
+     "execution_count": 8,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#değerlendirmeden itibaren 180+ gün ortalaması\n",
+    "df.loc[df[\"day_diff\"]>180, \"overall\"].mean()\n",
+    "#bu ürüne yapılan değerlendirmeler eskiden daha az puan almış demek."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "id": "1233f1a9",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-09-14T13:13:00.854178Z",
+     "iopub.status.busy": "2024-09-14T13:13:00.853774Z",
+     "iopub.status.idle": "2024-09-14T13:13:00.870275Z",
+     "shell.execute_reply": "2024-09-14T13:13:00.869101Z"
+    },
+    "papermill": {
+     "duration": 0.024872,
+     "end_time": "2024-09-14T13:13:00.872421",
+     "exception": false,
+     "start_time": "2024-09-14T13:13:00.847549",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>reviewerID</th>\n",
+       "      <th>asin</th>\n",
+       "      <th>reviewerName</th>\n",
+       "      <th>helpful</th>\n",
+       "      <th>reviewText</th>\n",
+       "      <th>overall</th>\n",
+       "      <th>summary</th>\n",
+       "      <th>unixReviewTime</th>\n",
+       "      <th>reviewTime</th>\n",
+       "      <th>day_diff</th>\n",
+       "      <th>helpful_yes</th>\n",
+       "      <th>total_vote</th>\n",
+       "      <th>helpful_no</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>A3SBTW3WS4IQSN</td>\n",
+       "      <td>B007WTAJTO</td>\n",
+       "      <td>NaN</td>\n",
+       "      <td>[0, 0]</td>\n",
+       "      <td>No issues.</td>\n",
+       "      <td>4.00000</td>\n",
+       "      <td>Four Stars</td>\n",
+       "      <td>1406073600</td>\n",
+       "      <td>2014-07-23</td>\n",
+       "      <td>138</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>A18K1ODH1I2MVB</td>\n",
+       "      <td>B007WTAJTO</td>\n",
+       "      <td>0mie</td>\n",
+       "      <td>[0, 0]</td>\n",
+       "      <td>Purchased this for my device, it worked as adv...</td>\n",
+       "      <td>5.00000</td>\n",
+       "      <td>MOAR SPACE!!!</td>\n",
+       "      <td>1382659200</td>\n",
+       "      <td>2013-10-25</td>\n",
+       "      <td>409</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>A2FII3I2MBMUIA</td>\n",
+       "      <td>B007WTAJTO</td>\n",
+       "      <td>1K3</td>\n",
+       "      <td>[0, 0]</td>\n",
+       "      <td>it works as expected. I should have sprung for...</td>\n",
+       "      <td>4.00000</td>\n",
+       "      <td>nothing to really say....</td>\n",
+       "      <td>1356220800</td>\n",
+       "      <td>2012-12-23</td>\n",
+       "      <td>715</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>A3H99DFEG68SR</td>\n",
+       "      <td>B007WTAJTO</td>\n",
+       "      <td>1m2</td>\n",
+       "      <td>[0, 0]</td>\n",
+       "      <td>This think has worked out great.Had a diff. br...</td>\n",
+       "      <td>5.00000</td>\n",
+       "      <td>Great buy at this price!!!  *** UPDATE</td>\n",
+       "      <td>1384992000</td>\n",
+       "      <td>2013-11-21</td>\n",
+       "      <td>382</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>A375ZM4U047O79</td>\n",
+       "      <td>B007WTAJTO</td>\n",
+       "      <td>2&amp;amp;1/2Men</td>\n",
+       "      <td>[0, 0]</td>\n",
+       "      <td>Bought it with Retail Packaging, arrived legit...</td>\n",
+       "      <td>5.00000</td>\n",
+       "      <td>best deal around</td>\n",
+       "      <td>1373673600</td>\n",
+       "      <td>2013-07-13</td>\n",
+       "      <td>513</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "       reviewerID        asin  reviewerName helpful                                         reviewText  overall                                 summary  unixReviewTime  reviewTime  day_diff  helpful_yes  total_vote  helpful_no\n",
+       "0  A3SBTW3WS4IQSN  B007WTAJTO           NaN  [0, 0]                                         No issues.  4.00000                              Four Stars      1406073600  2014-07-23       138            0           0           0\n",
+       "1  A18K1ODH1I2MVB  B007WTAJTO          0mie  [0, 0]  Purchased this for my device, it worked as adv...  5.00000                           MOAR SPACE!!!      1382659200  2013-10-25       409            0           0           0\n",
+       "2  A2FII3I2MBMUIA  B007WTAJTO           1K3  [0, 0]  it works as expected. I should have sprung for...  4.00000               nothing to really say....      1356220800  2012-12-23       715            0           0           0\n",
+       "3   A3H99DFEG68SR  B007WTAJTO           1m2  [0, 0]  This think has worked out great.Had a diff. br...  5.00000  Great buy at this price!!!  *** UPDATE      1384992000  2013-11-21       382            0           0           0\n",
+       "4  A375ZM4U047O79  B007WTAJTO  2&amp;1/2Men  [0, 0]  Bought it with Retail Packaging, arrived legit...  5.00000                        best deal around      1373673600  2013-07-13       513            0           0           0"
+      ]
+     },
+     "execution_count": 9,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Görev 2:  Ürün için ürün detay sayfasında görüntülenecek 20 review’i belirleyiniz.\n",
+    "\n",
+    "#Adım 1:  helpful_no değişkenini üretiniz.\n",
+    " #• total_vote bir yoruma verilen toplam up-downsayısıdır.\n",
+    " #• up, helpful demektir.\n",
+    " #• Veri setinde helpful_no değişkeni yoktur, var olan değişkenler üzerinden üretilmesi gerekmektedir.\n",
+    " #• Toplam oy sayısından (total_vote) yararlı oy sayısı (helpful_yes) çıkarılarak yararlı bulunmayan oy sayılarını (helpful_no) bulunuz.\n",
+    "\n",
+    "df[\"helpful_no\"]=df[\"total_vote\"]-df[\"helpful_yes\"]\n",
+    "df.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "id": "0479221c",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-09-14T13:13:00.884488Z",
+     "iopub.status.busy": "2024-09-14T13:13:00.884092Z",
+     "iopub.status.idle": "2024-09-14T13:13:00.893030Z",
+     "shell.execute_reply": "2024-09-14T13:13:00.892183Z"
+    },
+    "papermill": {
+     "duration": 0.017629,
+     "end_time": "2024-09-14T13:13:00.895317",
+     "exception": false,
+     "start_time": "2024-09-14T13:13:00.877688",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "#Adım 2:  score_pos_neg_diff, score_average_rating ve wilson_lower_bound skorlarını hesaplayıp veriye ekleyiniz.\n",
+    " #• score_pos_neg_diff, score_average_rating ve wilson_lower_bound skorlarını hesaplayabilmek için score_pos_neg_diff,  score_average_rating ve wilson_lower_bound fonksiyonlarını tanımlayınız.\n",
+    " #• score_pos_neg_diff'a göre skorlar oluşturunuz. Ardından; df içerisinde score_pos_neg_diff ismiyle kaydediniz.\n",
+    " #• score_average_rating'a göre skorlar oluşturunuz. Ardından; df içerisinde score_average_rating ismiyle kaydediniz.\n",
+    " #• wilson_lower_bound'a göre skorlar oluşturunuz. Ardından; df içerisinde wilson_lower_bound ismiyle kaydediniz.\n",
+    "\n",
+    "def score_pos_neg_diff(up,down):\n",
+    "    return up-down\n",
+    "\n",
+    "def score_average_rating(up,down):\n",
+    "    if up + down == 0:\n",
+    "        return 0\n",
+    "    else:\n",
+    "        return up / (up + down)\n",
+    "    \n",
+    "def wilson_lower_bound(up, down, confidence=0.95):\n",
+    "    \"\"\"\n",
+    "    Wilson Lower Bound Score hesapla\n",
+    "\n",
+    "    - Bernoulli parametresi p için hesaplanacak güven aralığının alt sınırı WLB skoru olarak kabul edilir.\n",
+    "    - Hesaplanacak skor ürün sıralaması için kullanılır.\n",
+    "    - Not:\n",
+    "    Eğer skorlar 1-5 arasıdaysa 1-3 negatif, 4-5 pozitif olarak işaretlenir ve bernoulli'ye uygun hale getirilebilir.\n",
+    "    Bu beraberinde bazı problemleri de getirir. Bu sebeple bayesian average rating yapmak gerekir.\n",
+    "\n",
+    "    Parameters\n",
+    "    ----------\n",
+    "    up: int\n",
+    "        up count\n",
+    "    down: int\n",
+    "        down count\n",
+    "    confidence: float\n",
+    "        confidence\n",
+    "\n",
+    "    Returns\n",
+    "    -------\n",
+    "    wilson score: float\n",
+    "\n",
+    "    \"\"\"\n",
+    "    n = up + down\n",
+    "    if n == 0:\n",
+    "        return 0\n",
+    "    z = st.norm.ppf(1 - (1 - confidence) / 2)\n",
+    "    phat = 1.0 * up / n\n",
+    "    return (phat + z * z / (2 * n) - z * math.sqrt((phat * (1 - phat) + z * z / (4 * n)) / n)) / (1 + z * z / n)\n",
+    "    "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "id": "d5d7ce60",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-09-14T13:13:00.908043Z",
+     "iopub.status.busy": "2024-09-14T13:13:00.907322Z",
+     "iopub.status.idle": "2024-09-14T13:13:00.969175Z",
+     "shell.execute_reply": "2024-09-14T13:13:00.968271Z"
+    },
+    "papermill": {
+     "duration": 0.071071,
+     "end_time": "2024-09-14T13:13:00.971770",
+     "exception": false,
+     "start_time": "2024-09-14T13:13:00.900699",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "df[\"score_pos_neg_diff\"]=df.apply(lambda x: score_pos_neg_diff(x[\"helpful_yes\"], x[\"helpful_no\"]), axis=1)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "id": "4b2d16a8",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-09-14T13:13:00.984120Z",
+     "iopub.status.busy": "2024-09-14T13:13:00.983729Z",
+     "iopub.status.idle": "2024-09-14T13:13:01.044355Z",
+     "shell.execute_reply": "2024-09-14T13:13:01.043313Z"
+    },
+    "papermill": {
+     "duration": 0.069858,
+     "end_time": "2024-09-14T13:13:01.047048",
+     "exception": false,
+     "start_time": "2024-09-14T13:13:00.977190",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "df[\"score_average_rating\"] = df.apply(lambda x: score_average_rating(x[\"helpful_yes\"], x[\"helpful_no\"]), axis=1)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "id": "f4629ef5",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-09-14T13:13:01.061401Z",
+     "iopub.status.busy": "2024-09-14T13:13:01.060143Z",
+     "iopub.status.idle": "2024-09-14T13:13:01.211373Z",
+     "shell.execute_reply": "2024-09-14T13:13:01.210247Z"
+    },
+    "papermill": {
+     "duration": 0.16154,
+     "end_time": "2024-09-14T13:13:01.213935",
+     "exception": false,
+     "start_time": "2024-09-14T13:13:01.052395",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "df[\"wilson_lower_bound\"] = df.apply(lambda x: wilson_lower_bound(x[\"helpful_yes\"], x[\"helpful_no\"]), axis=1)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "id": "7ce54535",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-09-14T13:13:01.226069Z",
+     "iopub.status.busy": "2024-09-14T13:13:01.225628Z",
+     "iopub.status.idle": "2024-09-14T13:13:01.247023Z",
+     "shell.execute_reply": "2024-09-14T13:13:01.245895Z"
+    },
+    "papermill": {
+     "duration": 0.03028,
+     "end_time": "2024-09-14T13:13:01.249519",
+     "exception": false,
+     "start_time": "2024-09-14T13:13:01.219239",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>reviewerID</th>\n",
+       "      <th>asin</th>\n",
+       "      <th>reviewerName</th>\n",
+       "      <th>helpful</th>\n",
+       "      <th>reviewText</th>\n",
+       "      <th>overall</th>\n",
+       "      <th>summary</th>\n",
+       "      <th>unixReviewTime</th>\n",
+       "      <th>reviewTime</th>\n",
+       "      <th>day_diff</th>\n",
+       "      <th>helpful_yes</th>\n",
+       "      <th>total_vote</th>\n",
+       "      <th>helpful_no</th>\n",
+       "      <th>score_pos_neg_diff</th>\n",
+       "      <th>score_average_rating</th>\n",
+       "      <th>wilson_lower_bound</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>2031</th>\n",
+       "      <td>A12B7ZMXFI6IXY</td>\n",
+       "      <td>B007WTAJTO</td>\n",
+       "      <td>Hyoun Kim \"Faluzure\"</td>\n",
+       "      <td>[1952, 2020]</td>\n",
+       "      <td>[[ UPDATE - 6/19/2014 ]]So my lovely wife boug...</td>\n",
+       "      <td>5.00000</td>\n",
+       "      <td>UPDATED - Great w/ Galaxy S4 &amp; Galaxy Tab 4 10...</td>\n",
+       "      <td>1367366400</td>\n",
+       "      <td>2013-01-05</td>\n",
+       "      <td>702</td>\n",
+       "      <td>1952</td>\n",
+       "      <td>2020</td>\n",
+       "      <td>68</td>\n",
+       "      <td>1884</td>\n",
+       "      <td>0.96634</td>\n",
+       "      <td>0.95754</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3449</th>\n",
+       "      <td>AOEAD7DPLZE53</td>\n",
+       "      <td>B007WTAJTO</td>\n",
+       "      <td>NLee the Engineer</td>\n",
+       "      <td>[1428, 1505]</td>\n",
+       "      <td>I have tested dozens of SDHC and micro-SDHC ca...</td>\n",
+       "      <td>5.00000</td>\n",
+       "      <td>Top of the class among all (budget-priced) mic...</td>\n",
+       "      <td>1348617600</td>\n",
+       "      <td>2012-09-26</td>\n",
+       "      <td>803</td>\n",
+       "      <td>1428</td>\n",
+       "      <td>1505</td>\n",
+       "      <td>77</td>\n",
+       "      <td>1351</td>\n",
+       "      <td>0.94884</td>\n",
+       "      <td>0.93652</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4212</th>\n",
+       "      <td>AVBMZZAFEKO58</td>\n",
+       "      <td>B007WTAJTO</td>\n",
+       "      <td>SkincareCEO</td>\n",
+       "      <td>[1568, 1694]</td>\n",
+       "      <td>NOTE:  please read the last update (scroll to ...</td>\n",
+       "      <td>1.00000</td>\n",
+       "      <td>1 Star reviews - Micro SDXC card unmounts itse...</td>\n",
+       "      <td>1375660800</td>\n",
+       "      <td>2013-05-08</td>\n",
+       "      <td>579</td>\n",
+       "      <td>1568</td>\n",
+       "      <td>1694</td>\n",
+       "      <td>126</td>\n",
+       "      <td>1442</td>\n",
+       "      <td>0.92562</td>\n",
+       "      <td>0.91214</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>317</th>\n",
+       "      <td>A1ZQAQFYSXL5MQ</td>\n",
+       "      <td>B007WTAJTO</td>\n",
+       "      <td>Amazon Customer \"Kelly\"</td>\n",
+       "      <td>[422, 495]</td>\n",
+       "      <td>If your card gets hot enough to be painful, it...</td>\n",
+       "      <td>1.00000</td>\n",
+       "      <td>Warning, read this!</td>\n",
+       "      <td>1346544000</td>\n",
+       "      <td>2012-02-09</td>\n",
+       "      <td>1033</td>\n",
+       "      <td>422</td>\n",
+       "      <td>495</td>\n",
+       "      <td>73</td>\n",
+       "      <td>349</td>\n",
+       "      <td>0.85253</td>\n",
+       "      <td>0.81858</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4672</th>\n",
+       "      <td>A2DKQQIZ793AV5</td>\n",
+       "      <td>B007WTAJTO</td>\n",
+       "      <td>Twister</td>\n",
+       "      <td>[45, 49]</td>\n",
+       "      <td>Sandisk announcement of the first 128GB micro ...</td>\n",
+       "      <td>5.00000</td>\n",
+       "      <td>Super high capacity!!!  Excellent price (on Am...</td>\n",
+       "      <td>1394150400</td>\n",
+       "      <td>2014-07-03</td>\n",
+       "      <td>158</td>\n",
+       "      <td>45</td>\n",
+       "      <td>49</td>\n",
+       "      <td>4</td>\n",
+       "      <td>41</td>\n",
+       "      <td>0.91837</td>\n",
+       "      <td>0.80811</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "          reviewerID        asin             reviewerName       helpful                                         reviewText  overall                                            summary  unixReviewTime  reviewTime  day_diff  helpful_yes  total_vote  helpful_no  score_pos_neg_diff  score_average_rating  wilson_lower_bound\n",
+       "2031  A12B7ZMXFI6IXY  B007WTAJTO     Hyoun Kim \"Faluzure\"  [1952, 2020]  [[ UPDATE - 6/19/2014 ]]So my lovely wife boug...  5.00000  UPDATED - Great w/ Galaxy S4 & Galaxy Tab 4 10...      1367366400  2013-01-05       702         1952        2020          68                1884               0.96634             0.95754\n",
+       "3449   AOEAD7DPLZE53  B007WTAJTO        NLee the Engineer  [1428, 1505]  I have tested dozens of SDHC and micro-SDHC ca...  5.00000  Top of the class among all (budget-priced) mic...      1348617600  2012-09-26       803         1428        1505          77                1351               0.94884             0.93652\n",
+       "4212   AVBMZZAFEKO58  B007WTAJTO              SkincareCEO  [1568, 1694]  NOTE:  please read the last update (scroll to ...  1.00000  1 Star reviews - Micro SDXC card unmounts itse...      1375660800  2013-05-08       579         1568        1694         126                1442               0.92562             0.91214\n",
+       "317   A1ZQAQFYSXL5MQ  B007WTAJTO  Amazon Customer \"Kelly\"    [422, 495]  If your card gets hot enough to be painful, it...  1.00000                                Warning, read this!      1346544000  2012-02-09      1033          422         495          73                 349               0.85253             0.81858\n",
+       "4672  A2DKQQIZ793AV5  B007WTAJTO                  Twister      [45, 49]  Sandisk announcement of the first 128GB micro ...  5.00000  Super high capacity!!!  Excellent price (on Am...      1394150400  2014-07-03       158           45          49           4                  41               0.91837             0.80811"
+      ]
+     },
+     "execution_count": 14,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# Adım 3:  20 Yorumu belirleyiniz ve sonuçları Yorumlayınız.\n",
+    "# • wilson_lower_bound'a göre ilk 20 yorumu belirleyip sıralayanız.\n",
+    "# • Sonuçları yorumlayınız\n",
+    "\n",
+    "df.sort_values(\"wilson_lower_bound\", ascending=False).head(5)"
+   ]
+  }
+ ],
+ "metadata": {
+  "kaggle": {
+   "accelerator": "none",
+   "dataSources": [
+    {
+     "datasetId": 5700141,
+     "sourceId": 9392689,
+     "sourceType": "datasetVersion"
+    }
+   ],
+   "dockerImageVersionId": 30761,
+   "isGpuEnabled": false,
+   "isInternetEnabled": true,
+   "language": "python",
+   "sourceType": "notebook"
+  },
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.10.14"
+  },
+  "papermill": {
+   "default_parameters": {},
+   "duration": 5.498211,
+   "end_time": "2024-09-14T13:13:01.777392",
+   "environment_variables": {},
+   "exception": null,
+   "input_path": "__notebook__.ipynb",
+   "output_path": "__notebook__.ipynb",
+   "parameters": {},
+   "start_time": "2024-09-14T13:12:56.279181",
+   "version": "2.6.0"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
